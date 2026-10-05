@@ -2,11 +2,38 @@
 
 后来的 AI 从这里开始。建筑设计由当前对话完成；本模组只负责读取世界和可靠施工。无需模型 API、视觉决策或网络端口。
 
+## 游戏关闭或随时进入游玩
+
+1.6.0新增后台世界引擎。用户只需给出世界名，AI运行下面的命令；无需用户开游戏或输入connect。
+
+```sh
+python3 scripts/offline.py --instance "/path/to/instance" worlds
+python3 scripts/offline.py --instance "/path/to/instance" start "示例世界"
+python3 scripts/offline.py --instance "/path/to/instance" status
+```
+
+- 只加载已有26.3世界；名字不唯一时使用目录ID，不自动转换或新建世界。原世界正被游戏使用时启动会拒绝，不能创建第二个写入者。
+- 后台持有Minecraft原生存档锁，备份后加载，正常保存原存档。不能直接编辑`.mca`。配置/模组在后台专用目录复制，正式图形与按键设置不变。
+- 用户随时启动MC，在单人列表选择同一世界，模组会通过仅绑定`127.0.0.1`的本机连接加入正在运行的后台；不会再启动集成服务端。退出客户端不停止后台，不需要AI操纵窗口。
+- 原单人玩家UUID继续用于登录与保存，避免生成一套新背包。后台只允许一个本机玩家。后台运行时生物与世界时间仍继续；图形客户端仍用原后端和资源包。
+- 后台模式沿用`workflow.py`，世界、维度、会话及回滚保护不变；默认维度为主世界，启动可用`--dimension minecraft:the_nether`明确指定。无准星时必须明确建筑原点，不拿默认原点猜选址。
+- 玩家进入后施工采用较小预算；玩家在搬迁范围或开着相关箱子时仍会暂停保护。其余区域可正常游玩。
+- 同一实例同时只启用一个后台世界。可以正常玩另一个世界，但不能让它抢用同一桥接；先停止后台再连接另一个世界。不同世界不共用任务目录。
+- 背景模式属于本机服务器连接，部分客户端模组可能按服务器连接组织地图缓存；已有单人地图文件保留。不要为了它调整用户配置。
+
+任务完成且无人游玩时保存停止；有人游玩就保留后台。停止操作在服务端再次检查玩家及正在连接的客户端，不强踢或强杀：
+
+```sh
+python3 scripts/offline.py --instance "/path/to/instance" stop
+```
+
+等待`stopped:true,saved:true`后才可回滚JAR或恢复备份。启动、停止不等同于建筑撤销；已有施工日志在原世界中继续保存。后台备份与日志在实例`aibuild-background/`，不上传Git。此工具当前依赖macOS的Java25定位方式。
+
 ## 先确认环境
 
 在仓库根目录运行 `python3 scripts/bridge.py --instance "/path/to/instance" status`。核对 `connected`、`updated`、`world`、`dimension`、`session`、`capabilities` 和现有任务状态。状态文件存在不代表游戏在线；10秒以上的旧状态不能作为在线依据。
 
-Minecraft 26.3、Java25、Fabric Loader≥0.19.5、Fabric API≥0.161.0+26.3；仅本机单人世界及房主开放的局域网。游戏中 `/aibuild connect` 建立连接，退出或切维度后重新连接。不能请求玩家反复靠近施工区：桥接自动加载目标及周边一圈。游戏关闭时世界不运行。
+Minecraft 26.3、Java25、Fabric Loader≥0.19.5、Fabric API≥0.161.0+26.3；支持本机单人世界、房主开放的局域网与本机后台世界。游戏中 `/aibuild connect` 建立连接，退出或切维度后重新连接。不能请求玩家反复靠近施工区：桥接自动加载目标及周边一圈。游戏关闭时世界不运行。
 
 统一工具使用 Python3 标准库，支持 macOS/Linux；其他平台先使用 `bridge.py`。下面所有命令在仓库根目录执行，`--instance` 必须在子命令前；示例坐标为占位示例，不是用户的真实场地。
 

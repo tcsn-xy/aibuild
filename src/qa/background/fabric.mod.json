@@ -1,0 +1,1 @@
+{"schemaVersion":1,"id":"aibuild_background_qa","version":"1","environment":"server","entrypoints":{"main":["me.xiaoyan.aibuild.qa.BackgroundServerQA"]},"depends":{"ai_builder":"*"}}

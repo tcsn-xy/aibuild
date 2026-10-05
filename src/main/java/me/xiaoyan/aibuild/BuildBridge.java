@@ -41,7 +41,8 @@ public final class BuildBridge implements ModInitializer {
  }
  public static void require(ServerPlayer p){if(engine==null||!engine.connected||!engine.owner.equals(p.getUUID()))throw new IllegalStateException("先输入 /aibuild connect");if(p.level()!=engine.level)throw new IllegalStateException("维度已变化，请重新连接");}
  public static void connect(ServerPlayer p,BlockPos chosen){
-  var server=p.level().getServer();if(!(server instanceof net.minecraft.client.server.IntegratedServer)||!server.isSingleplayerOwner(p.nameAndId()))throw new IllegalStateException("仅本机世界的房主可以连接建筑桥接；支持开放局域网");
+  var server=p.level().getServer();if(server instanceof OfflineServer){if(!server.isSingleplayerOwner(p.nameAndId()))throw new IllegalStateException("仅本机主人可连接");if(engine!=null){if(engine.level!=p.level())throw new IllegalStateException("后台当前维度不同，请先在工具切换维度");if(chosen!=null)engine.anchor=chosen;p.sendSystemMessage(Component.literal("后台建筑桥接已经连接，不需要重复连接。"));return;}engine=new Engine(server,p.level(),p.getUUID(),((OfflineServer)server).bridge,chosen!=null?chosen:pick(p),true);return;}if(!(server instanceof net.minecraft.client.server.IntegratedServer)||!server.isSingleplayerOwner(p.nameAndId()))throw new IllegalStateException("仅本机世界的房主可以连接建筑桥接；支持开放局域网");
+  if(BackgroundConnection.running(FabricLoader.getInstance().getGameDir().toAbsolutePath().normalize()).isPresent())throw new IllegalStateException("另一后台世界正在使用桥接；可以正常游玩本世界，连接施工前先停止后台世界");
   if(!p.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))throw new IllegalStateException("需要单人世界命令权限（允许作弊）");
   if(engine!=null)disconnect();BlockPos anchor=chosen!=null?chosen:pick(p);
   engine=new Engine(server,p,FabricLoader.getInstance().getGameDir().resolve("aibuild-bridge"),anchor);background=true;

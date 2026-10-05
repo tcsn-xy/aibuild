@@ -10,6 +10,7 @@ public final class InteractionBudget {
   if(!active)slowUntil=0;
   playing=active;lastFrame=now;
  }
+ public static void remotePlaying(boolean active){playing=active;slowUntil=0;}
  public static int steps(long now){return !playing?512:now<slowUntil?32:128;}
  public static long nanos(){return playing?500_000L:2_000_000L;}
 }

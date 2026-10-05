@@ -4,7 +4,9 @@
   "compatibilityLevel": "JAVA_25",
   "client": [
     "BackgroundMixin",
-    "IntegratedBackgroundMixin"
+    "IntegratedBackgroundMixin",
+    "OfflineWorldOpenMixin",
+    "OfflineWorldSummaryMixin"
   ],
   "injectors": {
     "defaultRequire": 1
@@ -14,6 +16,11 @@
     "AssemblyBlockEntityMixin",
     "CompoundContainerAccess",
     "MoveMenuMixin",
-    "MoveHopperMixin"
+    "MoveHopperMixin",
+    "OfflineListenerMixin"
+  ],
+  "server": [
+    "OfflineMainMixin",
+    "OfflineLoginMixin"
   ]
 }

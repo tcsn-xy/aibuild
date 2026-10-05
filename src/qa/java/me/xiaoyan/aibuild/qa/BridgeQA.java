@@ -18,7 +18,7 @@ import java.util.concurrent.*;
 /** Graphic client controller; external Python drives the production file protocol. */
 public final class BridgeQA implements ClientModInitializer {
  private int stage=0;private long entered=System.nanoTime();private boolean started=false;private final List<Map<String,Object>> checks=new ArrayList<>();
- public void onInitializeClient(){ClientTickEvents.END_CLIENT_TICK.register(this::tick);}
+ public void onInitializeClient(){if(System.getProperty("aibuild.qa.background")!=null){new BackgroundQA().onInitializeClient();return;}ClientTickEvents.END_CLIENT_TICK.register(this::tick);}
  private void check(String name,boolean value){if(!value)throw new IllegalStateException(name);checks.add(Map.of("check",name,"passed",true));System.out.println("BUILD_QA_PASS "+name);}
  private void go(int next){stage=next;entered=System.nanoTime();System.out.println("BUILD_QA_STAGE "+stage);}
  private double seconds(){return(System.nanoTime()-entered)/1e9;}

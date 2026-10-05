@@ -21,12 +21,15 @@ import java.util.function.*;
 public final class Engine {
  public final MinecraftServer server; public final ServerLevel level; public final UUID owner;
  public final Path bridge,journals; public final String session=UUID.randomUUID().toString(),world,dimension;
- public volatile boolean connected=true;public BlockPos anchor;public Job job;public final Transactions transactions;public final ChunkLease chunks;public final Moves moves;
+ public final boolean offline;public volatile boolean connected=true;public BlockPos anchor;public Job job;public final Transactions transactions;public final ChunkLease chunks;public final Moves moves;
  final ScheduledExecutorService io=Executors.newSingleThreadScheduledExecutor(r->{Thread t=new Thread(r,"aibuild-files");t.setDaemon(true);return t;});
  private final Set<String> received=ConcurrentHashMap.newKeySet();private final Map<String,BlockState> states=new ConcurrentHashMap<>();
  private long loadGeneration;private String loadRequest;private Prepared prepared;Work work;private long tickCount;private boolean loading=false;String message="就绪";
  public Engine(MinecraftServer server,ServerPlayer player,Path bridge,BlockPos anchor){
-  this.server=server;level=player.level();owner=player.getUUID();this.bridge=bridge;this.anchor=anchor;
+  this(server,player.level(),player.getUUID(),bridge,anchor,false);
+ }
+ public Engine(MinecraftServer server,ServerLevel level,UUID owner,Path bridge,BlockPos anchor,boolean offline){
+  this.offline=offline;this.server=server;this.level=level;this.owner=owner;this.bridge=bridge;this.anchor=anchor;
   world=server.getWorldPath(LevelResource.ROOT).toAbsolutePath().normalize().toString();dimension=level.dimension().identifier().toString();
   journals=server.getWorldPath(LevelResource.ROOT).resolve("aibuild-data").resolve(dimension.replace(':','_').replace('/','_'));
   moves=new Moves(this);chunks=new ChunkLease(level);transactions=new Transactions(this);io.scheduleWithFixedDelay(this::poll,0,150,TimeUnit.MILLISECONDS);publish();
@@ -46,7 +49,7 @@ public final class Engine {
  }catch(Exception e){BuildBridge.LOG.error("建筑桥接文件读取失败",e);}}
  private void auth(JsonObject r){if(!session.equals(r.get("session").getAsString())||!world.equals(r.get("world").getAsString())||!dimension.equals(r.get("dimension").getAsString()))throw new IllegalArgumentException("会话、世界或维度不匹配，请重新获取连接状态");permission();}
  private ServerPlayer player(){return server.getPlayerList().getPlayer(owner);}
- private void permission(){var p=player();if(p==null||p.level()!=level||!p.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)||!server.isSingleplayerOwner(p.nameAndId()))throw new IllegalStateException("房主离线、维度变化或命令权限不足");}
+ private void permission(){if(offline){if(!(server instanceof OfflineServer)||server.isStopped())throw new IllegalStateException("后台世界已停止");return;}var p=player();if(p==null||p.level()!=level||!p.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)||!server.isSingleplayerOwner(p.nameAndId()))throw new IllegalStateException("房主离线、维度变化或命令权限不足");}
  public void local(String op,String id){permission();if(op.equals("status")){tell(FilesIO.GSON.toJson(status()));return;}JsonObject r=new JsonObject();r.addProperty("op",op);if(id!=null)r.addProperty("job",id);handle(r,null);}
  private void handle(JsonObject r,String id){handle(r,id,null);}
  private void handle(JsonObject r,String id,Plan parsed){String op=r.get("op").getAsString();if(op.startsWith("move")){moves.handle(op,id,r);publish();return;}if(Set.of("pause","cancel","resume","undo").contains(op)&&(r.has("job")?r.get("job").getAsString().startsWith("mv-"):moves.busy()||work instanceof Moves.Check||work instanceof Moves.Verify||moves.prepared!=null||work==null&&!legacyBusy()&&!transactions.busy()&&moves.unfinished())){if(!r.has("job")&&moves.run!=null)r.addProperty("job",moves.run.id);moves.handle("move-"+op,id,r);publish();return;}if(Set.of("pause","cancel","resume","undo").contains(op)&&(r.has("job")?r.get("job").getAsString().startsWith("tx-"):(transactions.busy()||work instanceof Transactions.Check||work instanceof Transactions.Verify||transactions.prepared!=null||!legacyBusy()&&work==null&&transactions.run!=null))){transactions.handle("transaction-"+op,id,r);publish();return;}if(op.startsWith("projection-")||op.startsWith("demolish")||op.startsWith("transaction-")){transactions.handle(op,id,r);publish();return;}switch(op){
@@ -62,7 +65,7 @@ public final class Engine {
   default->throw new IllegalArgumentException("未知操作："+op);
  }publish();}
  private boolean busy(){return moves.busy()||transactions.busy()||legacyBusy();}
- private BlockPos pickAnchor(){return BuildBridge.pick(player());}
+ private BlockPos pickAnchor(){if(offline)throw new IllegalArgumentException("后台模式请明确提供原点坐标");return BuildBridge.pick(player());}
  boolean legacyBusy(){return job!=null&&(job.phase.equals("BUILDING")||job.phase.equals("UNDOING"));}
  void idle(){if(moves.unfinished())throw new IllegalStateException("先继续或回滚未完成的搬迁，物品仍封存");if(transactions.unfinished())throw new IllegalStateException("先处理未完成的新格式事务");if(work!=null||loading||busy())throw new IllegalStateException("已有任务正在执行，请暂停或取消");if(job!=null&&job.phase.equals("PAUSED")&&job.cursor<job.edits.size())throw new IllegalStateException("存在未完成任务，请继续、取消或撤销后再检查新图");}
  public void invalidatePrepared(){prepared=null;}
@@ -93,7 +96,7 @@ public final class Engine {
  }
  public void close(){moves.close();cancelLoad();chunks.close();transactions.close();connected=false;if(work!=null){work.cancel();work=null;}if(job!=null&&legacyBusy()){job.phase="PAUSED";if(!job.barrier.isCompletedExceptionally())job.save();}message="连接已关闭";publish();io.shutdown();try{if(!io.awaitTermination(10,TimeUnit.SECONDS))BuildBridge.LOG.error("建筑日志写入未在10秒内结束");}catch(InterruptedException e){Thread.currentThread().interrupt();}}
  private void tell(String s){var p=player();if(p!=null)p.sendSystemMessage(Component.literal("[建筑] "+s));}
- public Map<String,Object> status(){var s=new LinkedHashMap<String,Object>();s.put("protocol",3);s.put("move",moves.status());s.put("chunk_loading",chunks.status());s.put("transaction",transactions.status());s.put("capabilities",List.of("ordered_phases","native_updates","liquids","host_lan","hopper_minecart","projection_nbt","demolition_snapshots","remote_chunks","snapshot_move"));s.put("lan",server.isPublished());s.put("connected",connected);s.put("session",session);s.put("world",world);s.put("dimension",dimension);s.put("anchor",coords(anchor));s.put("message",message);s.put("updated",System.currentTimeMillis());s.put("background",connected);s.put("journals",journals.toAbsolutePath().toString());s.put("reading",work!=null);s.put("loading",loading);if(prepared!=null)s.put("prepared",prepared.summary());if(job!=null)s.put("job",job.progress());return s;}
+ public Map<String,Object> status(){var s=new LinkedHashMap<String,Object>();s.put("protocol",3);s.put("players",server.getPlayerCount());s.put("mode",offline?"background":"integrated");s.put("move",moves.status());s.put("chunk_loading",chunks.status());s.put("transaction",transactions.status());s.put("capabilities",List.of("ordered_phases","native_updates","liquids","host_lan","hopper_minecart","projection_nbt","demolition_snapshots","remote_chunks","snapshot_move"));s.put("lan",server.isPublished());s.put("connected",connected);s.put("session",session);s.put("world",world);s.put("dimension",dimension);s.put("anchor",coords(anchor));s.put("message",message);s.put("updated",System.currentTimeMillis());s.put("background",connected);s.put("journals",journals.toAbsolutePath().toString());s.put("reading",work!=null);s.put("loading",loading);if(prepared!=null)s.put("prepared",prepared.summary());if(job!=null)s.put("job",job.progress());return s;}
  public void publish(){Map<String,Object> data=status();write(()->FilesIO.atomic(bridge.resolve("status.json"),data));}
  CompletableFuture<Void> write(Throwing action){return CompletableFuture.runAsync(()->{try{action.run();}catch(Exception e){throw new CompletionException(e);}},io);}
  interface Throwing{void run()throws Exception;}
