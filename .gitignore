@@ -25,3 +25,6 @@
 **/.env*
 **/*credentials*
 **/*token*
+
+!/docs/
+!/scripts/workflow.py

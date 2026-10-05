@@ -109,7 +109,7 @@ public final class Transactions {
    if(cursor<p.cells.size())return false;
    for(var m:p.observed.entrySet()){var ent=e.level.getEntity(m.getKey());if(ent==null||!text(snapshot(ent,e.level)).equals(m.getValue()))throw new IllegalArgumentException("实体移动或内容变化，重新检查："+m.getKey());}
    if(p.kind.equals("projection")&&!e.level.getEntities((Entity)null,box(p.bounds),x->!(x instanceof Player)).isEmpty())throw new IllegalArgumentException("区域新出现实体，重新检查");
-   e.job=null;run=new Run("tx-"+UUID.randomUUID(),p);AssemblyGuard.hold(e.level,run.id,p.bounds);AssemblyGuard.holdEntities(e.level,run.id,new HashSet<>(p.mobs.stream().map(Mob::id).toList()));AssemblyGuard.release(e.level,p.token);prepared=null;run.phase="BUILDING";run.save();e.reply(request,true,run.progress(),null);return true;
+   e.job=null;run=new Run("tx-"+UUID.randomUUID(),p);run.requestId=request;AssemblyGuard.hold(e.level,run.id,p.bounds);AssemblyGuard.holdEntities(e.level,run.id,new HashSet<>(p.mobs.stream().map(Mob::id).toList()));AssemblyGuard.release(e.level,p.token);prepared=null;run.phase="BUILDING";run.save();e.reply(request,true,run.progress(),null);return true;
   }
  }
  boolean matches(BlockPos pos,BlockState state,String tag){return e.level.getBlockState(pos).equals(state)&&text(be(pos)).equals(tag);}
@@ -128,6 +128,7 @@ public final class Transactions {
  void schedule(JsonObject t){int[] q=Plan.triple(t.get("pos"));BlockPos p=new BlockPos(q[0],q[1],q[2]);int delay=Plan.integer(t.get("delay"));var priority=TickPriority.byValue(Plan.integer(t.get("priority")));if(t.get("type").getAsString().equals("fluid"))e.level.scheduleTick(p,BuiltInRegistries.FLUID.getValue(Identifier.parse(t.get("id").getAsString())),delay,priority);else e.level.scheduleTick(p,BuiltInRegistries.BLOCK.getValue(Identifier.parse(t.get("id").getAsString())),delay,priority);}
  public class Run {
   final String id;final Prepared p;final ChunkLease.Scope scope;public String phase="PAUSED",error="";public int stage=0,index=0,applied=0,mobApplied=0;boolean planSaved=false;int blockLimit=0,mobLimit=0;public boolean undo=false;final List<Object> conflicts=new ArrayList<>();CompletableFuture<Void> barrier=CompletableFuture.completedFuture(null);
+  String requestId;
   Run(String id,Prepared p){this.id=id;this.p=p;
    List<BlockPos> positions=new ArrayList<>(p.cells.stream().map(Cell::pos).toList());
    for(Mob m:p.mobs){for(String n:List.of(m.before,m.after))if(!n.isEmpty()){var tag=ProjectionData.parse(n);var list=tag.getList("Pos").or(()->tag.getList("pos")).orElseThrow(()->new IllegalArgumentException("实体记录缺少位置："+m.id));if(list.size()!=3)throw new IllegalArgumentException("实体位置损坏："+m.id);positions.add(BlockPos.containing(list.getDouble(0).orElseThrow(),list.getDouble(1).orElseThrow(),list.getDouble(2).orElseThrow()));}var ent=e.level.getEntity(m.id);if(ent!=null)positions.add(ent.blockPosition());}
@@ -139,7 +140,7 @@ public final class Transactions {
    var progress=progress();boolean undoSnapshot=undo;int blockHigh=blockLimit,mobHigh=mobLimit;
    CompletableFuture<Void> old=barrier;boolean writePlan=!planSaved;planSaved=true;
    barrier=e.write(()->{old.join();
-    if(writePlan){var j=new LinkedHashMap<String,Object>();j.put("version",3);j.put("world",e.world);j.put("dimension",e.dimension);j.put("id",id);j.put("kind",p.kind);j.put("name",p.name);j.put("bounds",p.bounds);j.put("cells",p.cells.stream().map(Cell::data).toList());j.put("mobs",p.mobs.stream().map(Mob::data).toList());j.put("activation",p.activation.stream().map(Engine::coords).toList());j.put("ticks",p.ticks);j.put("before_ticks",p.beforeTicks);j.put("progress",progress);j.put("undo",undoSnapshot);j.put("block_highwater",blockHigh);j.put("mob_highwater",mobHigh);FilesIO.atomic(path(id).resolve("journal.json"),j);}
+    if(writePlan){var j=new LinkedHashMap<String,Object>();j.put("version",3);j.put("world",e.world);j.put("dimension",e.dimension);j.put("id",id);j.put("kind",p.kind);j.put("name",p.name);j.put("bounds",p.bounds);j.put("cells",p.cells.stream().map(Cell::data).toList());j.put("mobs",p.mobs.stream().map(Mob::data).toList());j.put("activation",p.activation.stream().map(Engine::coords).toList());j.put("ticks",p.ticks);j.put("before_ticks",p.beforeTicks);j.put("progress",progress);j.put("undo",undoSnapshot);j.put("block_highwater",blockHigh);j.put("mob_highwater",mobHigh);FilesIO.atomic(path(id).resolve("journal.json"),j);if(requestId!=null)FilesIO.atomic(path(id).resolve("request.json"),Map.of("id",requestId,"session",e.session,"world",e.world,"dimension",e.dimension,"job",id));}
     FilesIO.atomic(path(id).resolve("progress.json"),Map.of("progress",progress,"undo",undoSnapshot,"block_highwater",blockHigh,"mob_highwater",mobHigh,"bounds",p.bounds,"id",id,"entity_ids",p.mobs.stream().map(m->m.id.toString()).toList()));
    });
   }

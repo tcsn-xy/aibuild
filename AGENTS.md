@@ -7,3 +7,5 @@ Preserve the inventory escrow, session checks, world/dimension binding, deduplic
 Do not commit game instances, saved worlds, schematics owned by others, inventory snapshots, request/result journals, local reports or credentials. The root allowlist in .gitignore is intentional.
 
 Compile with Java25. Run checks relevant to the change. Offline checks do not substitute for graphical client validation of world mutations. QA mods belong only in disposable instances; do not install them into normal gameplay.
+
+Read [docs/AI使用说明.md](docs/AI使用说明.md) first for all bridge operations. Prefer scripts/workflow.py and one durable task directory per operation. Resolve pending requests before submitting any replacement. Existing user authorization for a concrete task remains valid; do not request it again. Keep public examples generic.
