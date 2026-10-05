@@ -1,0 +1,27 @@
+# Public source allowlist. Local worlds, inventories, reports and credentials stay private.
+/*
+!/.gitignore
+!/README.md
+!/LICENSE
+!/THIRD_PARTY_NOTICES.md
+!/AGENTS.md
+!/build.gradle
+!/settings.gradle
+!/gradle.properties
+!/build.sh
+!/gradlew
+!/gradle/
+!/src/
+!/scripts/
+!/tests/
+/scripts/*
+!/scripts/bridge.py
+!/scripts/projection.py
+!/scripts/design.py
+!/scripts/runtime_guard.py
+**/__pycache__/
+**/*.pyc
+**/.DS_Store
+**/.env*
+**/*credentials*
+**/*token*

@@ -1,0 +1,19 @@
+plugins { id 'net.fabricmc.fabric-loom' version '1.17.21' }
+version='1.5.1+mc26.3'
+group='me.xiaoyan'
+base { archivesName='ai-builder' }
+repositories { mavenCentral() }
+dependencies {
+ minecraft 'com.mojang:minecraft:26.3'
+ implementation 'net.fabricmc:fabric-loader:0.19.5'
+ implementation 'net.fabricmc.fabric-api:fabric-api:0.161.0+26.3'
+}
+tasks.withType(JavaCompile).configureEach { options.encoding='UTF-8'; options.release=25; options.compilerArgs+=['-proc:none'] }
+sourceSets { qa { compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath; runtimeClasspath += output + compileClasspath } }
+tasks.register('qaJar', Jar) { dependsOn qaClasses; from sourceSets.qa.output; archiveFileName='aibuild-qa.jar' }
+jar { archiveFileName='ai-builder-1.5.1+mc26.3.jar'; from('LICENSE') }
+tasks.register('fingerprintQA', JavaExec) { dependsOn qaClasses; classpath=sourceSets.qa.runtimeClasspath; mainClass='me.xiaoyan.aibuild.qa.FingerprintQA' }
+
+tasks.register('inputBudgetQA', JavaExec) { dependsOn qaClasses; classpath=sourceSets.qa.runtimeClasspath; mainClass='me.xiaoyan.aibuild.qa.InputBudgetQA' }
+
+tasks.register('moveIndexQA', JavaExec) { dependsOn qaClasses; classpath=sourceSets.qa.runtimeClasspath; mainClass='me.xiaoyan.aibuild.qa.MoveIndexQA' }

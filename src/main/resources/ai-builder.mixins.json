@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "package": "me.xiaoyan.aibuild.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "BackgroundMixin",
+    "IntegratedBackgroundMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": [
+    "AssemblyServerMixin",
+    "AssemblyBlockEntityMixin",
+    "CompoundContainerAccess",
+    "MoveMenuMixin",
+    "MoveHopperMixin"
+  ]
+}
